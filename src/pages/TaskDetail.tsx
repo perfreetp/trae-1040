@@ -18,6 +18,10 @@ import {
   RefreshCw,
   Bell,
   MessageSquare,
+  Building2,
+  AlertCircle,
+  CloudRain,
+  Zap,
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import StatusBadge from '../components/StatusBadge';
@@ -36,7 +40,18 @@ import type { NotificationType } from '../types';
 
 export default function TaskDetail() {
   const { id } = useParams();
-  const { tasks, drones, orders, markTaskException, reassignTask, sendNotification, notifications } = useAppStore();
+  const {
+    tasks,
+    drones,
+    orders,
+    stations,
+    weatherSuspended,
+    setWeatherSuspended,
+    markTaskException,
+    reassignTask,
+    sendNotification,
+    notifications,
+  } = useAppStore();
   const task = tasks.find((t) => t.id === id);
   const drone = task ? drones.find((d) => d.id === task.droneId) : null;
   const order = task ? orders.find((o) => o.id === task.orderId) : null;
@@ -45,6 +60,7 @@ export default function TaskDetail() {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
   const [selectedNewDrone, setSelectedNewDrone] = useState('');
+  const [selectedNewStation, setSelectedNewStation] = useState('');
 
   const notificationTypes: { type: NotificationType; label: string; icon: string }[] = [
     { type: 'pickup', label: '取件通知', icon: '📦' },
@@ -82,6 +98,7 @@ export default function TaskDetail() {
   }
 
   const availableDrones = drones.filter((d) => d.status === 'idle' && d.battery >= 30 && d.id !== task.droneId);
+  const availableStations = stations.filter((s) => s.status === 'active');
 
   const handleMarkException = () => {
     if (confirm('确定要标记此任务为异常吗？')) {
@@ -94,14 +111,24 @@ export default function TaskDetail() {
       alert('请选择新的无人机');
       return;
     }
-    reassignTask(task.id, selectedNewDrone);
+    reassignTask(task.id, selectedNewDrone, selectedNewStation || undefined);
     setShowReassignModal(false);
     setSelectedNewDrone('');
+    setSelectedNewStation('');
   };
+
+  const reassignNotes = order?.remark?.split(' | ').filter((n) => n.startsWith('[改派记录]')) || [];
 
   const timelineItems = [
     { title: '任务创建', description: `任务 ${task.taskNo} 已创建`, time: task.createTime, completed: true },
     { title: '无人机待命', description: `${drone?.name || '无人机'} 已就绪`, time: task.createTime, completed: true },
+    ...reassignNotes.map((note, index) => ({
+      title: `改派记录 ${index + 1}`,
+      description: note.replace('[改派记录] ', ''),
+      time: new Date().toISOString(),
+      completed: true,
+      highlight: true,
+    })),
     {
       title: '起飞执行',
       description: '无人机起飞执行任务',
@@ -127,6 +154,28 @@ export default function TaskDetail() {
           <p className="text-tech-text-secondary text-sm mt-1">创建于 {formatDate(task.createTime)}</p>
         </div>
         <div className="flex items-center gap-2">
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+              weatherSuspended
+                ? 'bg-tech-warning/20 border-tech-warning text-tech-warning'
+                : 'bg-tech-success/20 border-tech-success text-tech-success'
+            }`}
+          >
+            {weatherSuspended ? <CloudRain className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+            <span className="text-sm font-medium">{weatherSuspended ? '天气暂停中' : '天气正常'}</span>
+            <button
+              onClick={() => setWeatherSuspended(!weatherSuspended)}
+              className={`w-10 h-5 rounded-full relative transition-colors ${
+                weatherSuspended ? 'bg-tech-warning' : 'bg-tech-success'
+              }`}
+            >
+              <div
+                className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${
+                  weatherSuspended ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
           <button
             onClick={() => setShowNotifyModal(true)}
             className="tech-button-secondary flex items-center gap-2"
@@ -171,6 +220,20 @@ export default function TaskDetail() {
         </div>
       </div>
 
+      {weatherSuspended && (
+        <div className="glass-card p-4 border-tech-warning/50 bg-tech-warning/10">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-tech-warning flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-tech-warning">天气暂停已启用</p>
+              <p className="text-xs text-tech-text-secondary mt-0.5">
+                当前无法进行新的派单或改派操作，请关闭天气暂停后再尝试
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {task.status === 'exception' && (
         <div className="glass-card p-4 border-tech-danger/50 bg-tech-danger/10">
           <div className="flex items-center gap-3">
@@ -180,6 +243,24 @@ export default function TaskDetail() {
               <p className="text-xs text-tech-text-secondary mt-0.5">
                 此任务已被标记为异常，请重新指派无人机或取消任务
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reassignNotes.length > 0 && (
+        <div className="glass-card p-4 border-tech-primary/50 bg-tech-primary/5">
+          <div className="flex items-start gap-3">
+            <RefreshCw className="w-5 h-5 text-tech-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-tech-primary">改派记录</p>
+              <div className="mt-2 space-y-1">
+                {reassignNotes.map((note, index) => (
+                  <p key={index} className="text-xs text-tech-text-secondary">
+                    {note.replace('[改派记录] ', '')}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -258,6 +339,17 @@ export default function TaskDetail() {
                     {task.route.startPoint.lat.toFixed(4)}, {task.route.startPoint.lng.toFixed(4)}
                   </p>
                 </div>
+                {task.route.waypoints.length > 0 && (
+                  <>
+                    <div className="flex justify-center">
+                      <div className="w-0.5 h-4 bg-tech-border" />
+                    </div>
+                    <div className="p-3 rounded-lg bg-tech-bg border border-tech-warning/30">
+                      <p className="text-xs text-tech-warning mb-1">绕行点</p>
+                      <p className="text-sm text-tech-text font-medium">禁飞区绕行</p>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-center">
                   <div className="w-0.5 h-4 bg-tech-border" />
                 </div>
@@ -278,6 +370,14 @@ export default function TaskDetail() {
                     <p className="text-sm text-tech-text font-medium">{formatDuration(task.estimatedDuration)}</p>
                   </div>
                 </div>
+                {task.route.avoidZones.length > 0 && (
+                  <div className="p-2 rounded-lg bg-tech-warning/10 border border-tech-warning/30">
+                    <p className="text-xs text-tech-warning flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      已避开 {task.route.avoidZones.length} 个禁飞区
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -404,11 +504,11 @@ export default function TaskDetail() {
 
       {showReassignModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="glass-card p-6 w-full max-w-lg mx-4">
+          <div className="glass-card p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-tech-text flex items-center gap-2">
                 <RefreshCw className="w-5 h-5 text-tech-primary" />
-                重新指派无人机
+                重新指派任务
               </h3>
               <button
                 onClick={() => setShowReassignModal(false)}
@@ -418,6 +518,20 @@ export default function TaskDetail() {
               </button>
             </div>
 
+            {weatherSuspended && (
+              <div className="p-4 rounded-lg bg-tech-warning/20 border border-tech-warning/50 mb-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-tech-warning flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-tech-warning">天气暂停</p>
+                    <p className="text-xs text-tech-text-secondary mt-1">
+                      当前天气暂停已开启，无法进行改派操作。请先关闭天气暂停。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div className="p-3 rounded-lg bg-tech-bg">
                 <p className="text-sm text-tech-text-secondary">
@@ -426,14 +540,55 @@ export default function TaskDetail() {
                 <p className="text-sm text-tech-text-secondary mt-1">
                   原无人机：<span className="text-tech-text">{drone?.name || '-'}</span>
                 </p>
+                <p className="text-sm text-tech-text-secondary mt-1">
+                  原航线：<span className="text-tech-text">{task.route.startPoint.name} → {task.route.endPoint.name}</span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-tech-text-secondary mb-2">选择新的起飞/中转站点（可选）</label>
+                <div className="space-y-2 max-h-32 overflow-auto">
+                  <button
+                    onClick={() => setSelectedNewStation('')}
+                    className={`w-full p-3 rounded-lg text-left transition-colors ${
+                      selectedNewStation === ''
+                        ? 'bg-tech-primary/20 border border-tech-primary'
+                        : 'bg-tech-bg hover:bg-tech-bg-lighter border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Plane className="w-4 h-4 text-tech-primary" />
+                      <span className="text-sm font-medium text-tech-text">保持原航线（不更换站点）</span>
+                    </div>
+                  </button>
+                  {availableStations.map((station) => (
+                    <button
+                      key={station.id}
+                      onClick={() => setSelectedNewStation(station.id)}
+                      className={`w-full p-3 rounded-lg text-left transition-colors ${
+                        selectedNewStation === station.id
+                          ? 'bg-tech-primary/20 border border-tech-primary'
+                          : 'bg-tech-bg hover:bg-tech-bg-lighter border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-tech-primary" />
+                          <span className="text-sm font-medium text-tech-text">{station.name}</span>
+                        </div>
+                        <span className="text-xs text-tech-text-secondary">{station.address}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm text-tech-text-secondary mb-2">选择新无人机</label>
-                <div className="space-y-2 max-h-64 overflow-auto">
+                <div className="space-y-2 max-h-48 overflow-auto">
                   {availableDrones.length === 0 ? (
                     <p className="text-sm text-tech-text-secondary p-3 bg-tech-bg rounded-lg text-center">
-                      暂无可用无人机
+                      暂无电量充足（≥30%）的可用无人机
                     </p>
                   ) : (
                     availableDrones.map((d) => (
@@ -473,6 +628,28 @@ export default function TaskDetail() {
                 </div>
               </div>
 
+              <div className="p-3 rounded-lg bg-tech-bg">
+                <h4 className="text-sm font-medium text-tech-text mb-2">改派后更新</h4>
+                <ul className="space-y-1 text-xs text-tech-text-secondary">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-tech-success" />
+                    任务状态重置为「排队中」，进度归零
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-tech-success" />
+                    订单状态更新为「已派单」
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-tech-success" />
+                    时间线记录改派操作
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-tech-success" />
+                    发送客户改派通知
+                  </li>
+                </ul>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setShowReassignModal(false)}
@@ -482,7 +659,7 @@ export default function TaskDetail() {
                 </button>
                 <button
                   onClick={handleReassign}
-                  disabled={!selectedNewDrone || availableDrones.length === 0}
+                  disabled={!selectedNewDrone || availableDrones.length === 0 || weatherSuspended}
                   className="tech-button flex-1 disabled:opacity-50"
                 >
                   确认改派

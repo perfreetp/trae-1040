@@ -8,6 +8,7 @@ interface TimelineItem {
   time?: string;
   completed: boolean;
   current?: boolean;
+  highlight?: boolean;
   icon?: typeof Check;
 }
 
@@ -39,7 +40,9 @@ export default function Timeline({ items }: TimelineProps) {
           
           <div
             className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-              item.completed
+              item.highlight
+                ? 'bg-tech-warning text-white ring-2 ring-tech-warning/30'
+                : item.completed
                 ? 'bg-tech-primary text-white'
                 : item.current
                 ? 'bg-tech-bg border-2 border-tech-primary text-tech-primary'
