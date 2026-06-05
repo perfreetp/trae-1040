@@ -271,7 +271,18 @@ export default function TaskDetail() {
           <div className="glass-card p-5">
             <h3 className="font-semibold text-tech-text mb-4">实时飞行监控</h3>
             <div className="h-80">
-              <MapView />
+              {task.route.originalRoute ? (
+                <MapView
+                  highlightRoute={{
+                    original: task.route.originalRoute,
+                    detour: task.route,
+                    hasDetour: true,
+                    timeIncrease: task.route.estimatedTime - task.route.originalRoute.estimatedTime,
+                  }}
+                />
+              ) : (
+                <MapView />
+              )}
             </div>
           </div>
 

@@ -318,15 +318,26 @@ export default function Orders() {
                 <th className="text-left py-3 px-4 text-xs text-tech-text-secondary font-medium">状态</th>
                 <th className="text-left py-3 px-4 text-xs text-tech-text-secondary font-medium">金额</th>
                 <th className="text-left py-3 px-4 text-xs text-tech-text-secondary font-medium">创建时间</th>
+                {lastDispatchResults.length > 0 && (
+                  <th className="text-left py-3 px-4 text-xs text-tech-text-secondary font-medium">派单结果</th>
+                )}
                 <th className="text-left py-3 px-4 text-xs text-tech-text-secondary font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => (
+              {filteredOrders.map((order) => {
+                const dispatchResult = lastDispatchResults.find((r) => r.orderId === order.id);
+                const isDispatchSuccess = dispatchResult?.success;
+                const isDispatchFailed = dispatchResult?.success === false;
+
+                return (
                 <tr
                   key={order.id}
                   className={`border-b border-tech-border/50 hover:bg-tech-bg/50 transition-colors ${
                     selectedOrders.includes(order.id) ? 'bg-tech-primary/10' : ''
+                  } ${
+                    isDispatchSuccess ? 'bg-tech-success/5' :
+                    isDispatchFailed ? 'bg-tech-danger/5' : ''
                   }`}
                 >
                   <td className="py-3 px-4">
@@ -367,6 +378,25 @@ export default function Orders() {
                   <td className="py-3 px-4 text-sm text-tech-text-secondary font-mono">
                     {formatDate(order.createTime)}
                   </td>
+                  {lastDispatchResults.length > 0 && (
+                    <td className="py-3 px-4">
+                      {isDispatchSuccess && (
+                        <span className="inline-flex items-center gap-1 text-xs text-tech-success">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          派单成功
+                        </span>
+                      )}
+                      {isDispatchFailed && (
+                        <span className="inline-flex items-center gap-1 text-xs text-tech-danger">
+                          <XCircle className="w-3.5 h-3.5" />
+                          {dispatchResult?.reason}
+                        </span>
+                      )}
+                      {!isDispatchSuccess && !isDispatchFailed && (
+                        <span className="text-xs text-tech-text-secondary">-</span>
+                      )}
+                    </td>
+                  )}
                   <td className="py-3 px-4">
                     <Link
                       to={`/orders/${order.id}`}
@@ -377,7 +407,8 @@ export default function Orders() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

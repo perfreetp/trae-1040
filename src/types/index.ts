@@ -95,6 +95,7 @@ export interface Route {
   distance: number;
   estimatedTime: number;
   avoidZones: string[];
+  originalRoute?: Route;
 }
 
 export interface FlightTask {

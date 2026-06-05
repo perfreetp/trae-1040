@@ -254,7 +254,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const startPoint = { lat: order.sender.lat, lng: order.sender.lng, name: order.sender.address };
       const endPoint = { lat: order.receiver.lat, lng: order.receiver.lng, name: order.receiver.address };
-      const { detourRoute } = state.calculateDetourRoute(startPoint, endPoint);
+      const { originalRoute, detourRoute, hasDetour } = state.calculateDetourRoute(startPoint, endPoint);
+
+      if (hasDetour) {
+        detourRoute.originalRoute = originalRoute;
+      }
 
       const taskId = `t${Date.now()}-${index}`;
       const newTask: FlightTask = {
@@ -315,77 +319,84 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     })),
 
-  reassignTask: (taskId, newDroneId, newStationId) =>
-    set((state) => {
-      const task = state.tasks.find((t) => t.id === taskId);
-      if (!task) return state;
+  reassignTask: (taskId, newDroneId, newStationId) => {
+    const state = get();
 
-      if (state.weatherSuspended) {
-        alert('天气暂停，无法改派任务');
-        return state;
-      }
+    if (state.weatherSuspended) {
+      alert('天气暂停，无法改派任务');
+      return;
+    }
 
-      const newDrone = state.drones.find((d) => d.id === newDroneId);
-      if (!newDrone || newDrone.battery < 30) {
-        alert('所选无人机电池不足，请选择其他无人机');
-        return state;
-      }
+    const task = state.tasks.find((t) => t.id === taskId);
+    if (!task) return;
 
-      const oldDroneId = task.droneId;
-      let newRoute = task.route;
+    const newDrone = state.drones.find((d) => d.id === newDroneId);
+    if (!newDrone || newDrone.battery < 30) {
+      alert('所选无人机电池不足，请选择其他无人机');
+      return;
+    }
 
-      if (newStationId) {
-        const station = state.stations.find((s) => s.id === newStationId);
-        if (station) {
-          const startPoint = { lat: station.lat, lng: station.lng, name: station.name };
-          const endPoint = task.route.endPoint;
-          const { detourRoute } = state.calculateDetourRoute(startPoint, endPoint);
-          newRoute = detourRoute;
+    const oldDroneId = task.droneId;
+    let newRoute = task.route;
+
+    if (newStationId) {
+      const station = state.stations.find((s) => s.id === newStationId);
+      if (station) {
+        const startPoint = { lat: station.lat, lng: station.lng, name: station.name };
+        const endPoint = task.route.endPoint;
+        const { originalRoute, detourRoute, hasDetour } = state.calculateDetourRoute(startPoint, endPoint);
+        if (hasDetour) {
+          detourRoute.originalRoute = originalRoute;
         }
+        newRoute = detourRoute;
       }
+    }
 
-      const reassignmentTime = new Date().toISOString();
-      const reassignmentNote = `[改派记录] ${state.currentUser} 于 ${new Date().toLocaleString('zh-CN')} 改派至 ${newDrone.name}${newStationId ? '（经停' + state.stations.find((s) => s.id === newStationId)?.name + '）' : ''}`;
+    const reassignmentTime = new Date().toISOString();
+    const stationName = newStationId ? state.stations.find((s) => s.id === newStationId)?.name : null;
+    const reassignmentNote = `[改派记录] ${state.currentUser} 于 ${new Date().toLocaleString('zh-CN')} 改派至 ${newDrone.name}${stationName ? '，起飞站点调整为 ' + stationName : ''}`;
 
-      return {
-        tasks: state.tasks.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                droneId: newDroneId,
-                route: newRoute,
-                status: 'queued',
-                progress: 0,
-                estimatedDuration: newRoute.estimatedTime,
-                estimatedArrival: new Date(Date.now() + newRoute.estimatedTime * 60000).toISOString(),
-              }
-            : t
-        ),
-        drones: state.drones.map((d) => {
-          if (d.id === oldDroneId) return { ...d, status: 'idle', currentTaskId: undefined };
-          if (d.id === newDroneId) return { ...d, status: 'ready', currentTaskId: taskId };
-          return d;
-        }),
-        orders: state.orders.map((o) =>
-          o.id === task.orderId
-            ? { ...o, status: 'dispatched', remark: o.remark ? o.remark + ' | ' + reassignmentNote : reassignmentNote }
-            : o
-        ),
-        notifications: [
-          {
-            id: `n${Date.now()}`,
-            orderId: task.orderId,
-            type: 'pickup',
-            title: '任务改派通知',
-            content: reassignmentNote,
-            sendTime: reassignmentTime,
-            sender: state.currentUser,
-            read: false,
-          },
-          ...state.notifications,
-        ],
-      };
-    }),
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              droneId: newDroneId,
+              route: newRoute,
+              status: 'queued',
+              progress: 0,
+              estimatedDuration: newRoute.estimatedTime,
+              estimatedArrival: new Date(Date.now() + newRoute.estimatedTime * 60000).toISOString(),
+              currentLat: newRoute.startPoint.lat,
+              currentLng: newRoute.startPoint.lng,
+            }
+          : t
+      ),
+      drones: state.drones.map((d) => {
+        if (d.id === oldDroneId) return { ...d, status: 'idle', currentTaskId: undefined };
+        if (d.id === newDroneId) return { ...d, status: 'ready', currentTaskId: taskId };
+        return d;
+      }),
+      orders: state.orders.map((o) =>
+        o.id === task.orderId
+          ? { ...o, status: 'dispatched', remark: o.remark ? o.remark + ' | ' + reassignmentNote : reassignmentNote }
+          : o
+      ),
+      notifications: [
+        {
+          id: `n${Date.now()}`,
+          orderId: task.orderId,
+          type: 'pickup',
+          title: '任务改派通知',
+          content: reassignmentNote,
+          sendTime: reassignmentTime,
+          sender: state.currentUser,
+          read: false,
+        },
+        ...state.notifications,
+      ],
+    }));
+  },
 
   markTaskException: (taskId) =>
     set((state) => {

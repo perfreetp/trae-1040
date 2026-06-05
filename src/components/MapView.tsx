@@ -40,7 +40,7 @@ export default function MapView({ showRoutes = true, interactive = true, showNoF
     setZoom((prev) => Math.max(prev - 0.2, 0.5));
   };
 
-  const flyingTasks = tasks.filter((t) => t.status === 'flying');
+  const visibleTasks = tasks.filter((t) => t.status === 'queued' || t.status === 'ready' || t.status === 'flying');
 
   const getNoFlyZoneColor = (type: string) => {
     switch (type) {
@@ -204,7 +204,7 @@ export default function MapView({ showRoutes = true, interactive = true, showNoF
           );
         })}
 
-        {!highlightRoute && flyingTasks.map((task) => {
+        {!highlightRoute && visibleTasks.map((task) => {
           const dronePos = mapToSvg(task.currentLat, task.currentLng);
           const startPos = mapToSvg(task.route.startPoint.lat, task.route.startPoint.lng);
           const endPos = mapToSvg(task.route.endPoint.lat, task.route.endPoint.lng);
@@ -222,87 +222,138 @@ export default function MapView({ showRoutes = true, interactive = true, showNoF
             pathD += ` Q ${(startPos.x + endPos.x) / 2} ${Math.min(startPos.y, endPos.y) - 50 * zoom} ${endPos.x} ${endPos.y}`;
           }
 
+          const getTaskColor = () => {
+            switch (task.status) {
+              case 'queued': return '#F59E0B';
+              case 'ready': return '#3B82F6';
+              case 'flying': return '#10B981';
+              default: return '#3B82F6';
+            }
+          };
+
+          const taskColor = getTaskColor();
+
           return (
             <g key={task.id}>
+              {task.route.originalRoute && (
+                <path
+                  d={buildPath(task.route.originalRoute)}
+                  stroke="#EF4444"
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeDasharray="4 4"
+                  opacity="0.4"
+                />
+              )}
+
               {showRoutes && (
                 <path
                   d={pathD}
-                  stroke={task.route.avoidZones.length > 0 ? '#10B981' : '#3B82F6'}
-                  strokeWidth="2"
+                  stroke={task.route.avoidZones.length > 0 ? '#10B981' : taskColor}
+                  strokeWidth={task.status === 'flying' ? 2.5 : 2}
                   fill="none"
-                  strokeDasharray="8 4"
-                  opacity="0.6"
+                  strokeDasharray={task.status === 'queued' ? '6 6' : '8 4'}
+                  opacity={task.status === 'flying' ? 0.8 : 0.6}
                 />
               )}
               
-              <g filter="url(#glow)" className="animate-pulse">
-                <polygon
-                  points={`${dronePos.x},${dronePos.y - 10 * zoom} ${dronePos.x + 8 * zoom},${dronePos.y + 6 * zoom} ${dronePos.x},${dronePos.y + 2 * zoom} ${dronePos.x - 8 * zoom},${dronePos.y + 6 * zoom}`}
-                  fill="#3B82F6"
-                />
-                <circle cx={dronePos.x} cy={dronePos.y} r={15 * zoom} fill="#3B82F6" opacity="0.2" />
+              <g filter={task.status === 'flying' ? 'url(#glow)' : ''} className={task.status === 'flying' ? 'animate-pulse' : ''}>
+                {task.status !== 'flying' ? (
+                  <>
+                    <circle cx={dronePos.x} cy={dronePos.y} r={8 * zoom} fill={taskColor} opacity="0.8" />
+                    <circle cx={dronePos.x} cy={dronePos.y} r={4 * zoom} fill="#0F172A" />
+                  </>
+                ) : (
+                  <>
+                    <polygon
+                      points={`${dronePos.x},${dronePos.y - 10 * zoom} ${dronePos.x + 8 * zoom},${dronePos.y + 6 * zoom} ${dronePos.x},${dronePos.y + 2 * zoom} ${dronePos.x - 8 * zoom},${dronePos.y + 6 * zoom}`}
+                      fill={taskColor}
+                    />
+                    <circle cx={dronePos.x} cy={dronePos.y} r={15 * zoom} fill={taskColor} opacity="0.2" />
+                  </>
+                )}
               </g>
             </g>
           );
         })}
 
-        <g transform="translate(20, 480)">
-          <rect x="0" y="0" width={highlightRoute ? "240" : "220"} height={highlightRoute ? "130" : "90"} rx="8" fill="#1E293B" stroke="#334155" />
+        <g transform="translate(20, 460)">
+          <rect x="0" y="0" width="260" height={highlightRoute && highlightRoute.hasDetour ? "150" : "110"} rx="8" fill="#1E293B" stroke="#334155" />
           <g transform="translate(12, 12)">
             <circle cx="8" cy="8" r="6" fill="#10B981" />
             <text x="22" y="12" fill="#94A3B8" fontSize="11">站点</text>
           </g>
-          <g transform="translate(80, 12)">
-            <polygon points="8,0 14,12 8,8 2,12" fill="#3B82F6" />
-            <text x="22" y="12" fill="#94A3B8" fontSize="11">无人机</text>
+          <g transform="translate(70, 12)">
+            <circle cx="8" cy="8" r="6" fill="#F59E0B" />
+            <text x="22" y="12" fill="#94A3B8" fontSize="11">排队中</text>
           </g>
-          <g transform="translate(12, 38)">
-            <path d="M 0 8 L 40 8" stroke="#3B82F6" strokeWidth="2" strokeDasharray="4 2" />
-            <text x="50" y="12" fill="#94A3B8" fontSize="11">正常航线</text>
+          <g transform="translate(140, 12)">
+            <circle cx="8" cy="8" r="6" fill="#3B82F6" />
+            <text x="22" y="12" fill="#94A3B8" fontSize="11">准备起飞</text>
+          </g>
+          <g transform="translate(12, 36)">
+            <polygon points="8,0 14,12 8,8 2,12" fill="#10B981" />
+            <text x="22" y="12" fill="#94A3B8" fontSize="11">飞行中</text>
+          </g>
+          <g transform="translate(70, 36)">
+            <path d="M 0 8 L 40 8" stroke="#10B981" strokeWidth="2" strokeDasharray="4 2" />
+            <text x="50" y="12" fill="#94A3B8" fontSize="11">最终航线</text>
+          </g>
+          <g transform="translate(12, 60)">
+            <path d="M 0 8 L 40 8" stroke="#EF4444" strokeWidth="2" strokeDasharray="4 4" />
+            <text x="50" y="12" fill="#94A3B8" fontSize="11">原始路线(参考)</text>
           </g>
           {showNoFlyZones && (
-            <g transform="translate(12, 62)">
+            <g transform="translate(140, 60)">
               <circle cx="8" cy="8" r="6" fill="#EF4444" opacity="0.5" stroke="#DC2626" strokeDasharray="2 1" />
               <text x="22" y="12" fill="#94A3B8" fontSize="11">禁飞区</text>
             </g>
           )}
           {highlightRoute && highlightRoute.hasDetour && (
-            <>
-              <g transform="translate(12, 86)">
-                <path d="M 0 8 L 40 8" stroke="#EF4444" strokeWidth="2" strokeDasharray="4 2" />
-                <text x="50" y="12" fill="#94A3B8" fontSize="11">原始路线</text>
-              </g>
-              <g transform="translate(120, 86)">
-                <path d="M 0 8 L 40 8" stroke="#10B981" strokeWidth="2" strokeDasharray="4 2" />
-                <text x="50" y="12" fill="#94A3B8" fontSize="11">绕行路线</text>
-              </g>
-              <g transform="translate(12, 108)">
-                <text x="0" y="12" fill="#F59E0B" fontSize="10">
-                  ⏱ 绕行增加 {highlightRoute.timeIncrease} 分钟
-                </text>
-              </g>
-            </>
+            <g transform="translate(12, 86)">
+              <text x="0" y="12" fill="#F59E0B" fontSize="10">
+                ⏱ 绕行增加 {highlightRoute.timeIncrease} 分钟 · 原始 {highlightRoute.original.estimatedTime} → 绕行 {highlightRoute.detour.estimatedTime} 分钟
+              </text>
+            </g>
           )}
         </g>
       </svg>
 
-      <div className="absolute top-4 right-4 glass-card p-3 space-y-2">
-        <p className="text-xs font-medium text-tech-text mb-2">实时飞行</p>
-        {flyingTasks.map((task) => (
-          <div key={task.id} className="flex items-center gap-2 text-xs">
-            <Plane className="w-3.5 h-3.5 text-tech-primary" />
-            <span className="text-tech-text-secondary font-mono">{task.taskNo.slice(-4)}</span>
-            <div className="flex-1 h-1.5 bg-tech-border rounded-full overflow-hidden">
+      <div className="absolute top-4 right-4 glass-card p-3 space-y-2 max-w-52">
+        <p className="text-xs font-medium text-tech-text mb-2">任务状态</p>
+        {visibleTasks.length === 0 ? (
+          <p className="text-xs text-tech-text-secondary">暂无任务</p>
+        ) : (
+          visibleTasks.slice(0, 5).map((task) => (
+            <div key={task.id} className="flex items-center gap-2 text-xs">
               <div
-                className="h-full bg-tech-primary rounded-full transition-all duration-500"
-                style={{ width: `${task.progress}%` }}
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  task.status === 'queued' ? 'bg-amber-500' :
+                  task.status === 'ready' ? 'bg-blue-500' : 'bg-green-500'
+                }`}
               />
+              <span className="text-tech-text-secondary font-mono flex-shrink-0">{task.taskNo.slice(-4)}</span>
+              {task.status === 'flying' && (
+                <>
+                  <div className="flex-1 h-1.5 bg-tech-border rounded-full overflow-hidden min-w-0">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all duration-500"
+                      style={{ width: `${task.progress}%` }}
+                    />
+                  </div>
+                  <span className="text-tech-text font-mono flex-shrink-0">{task.progress.toFixed(0)}%</span>
+                </>
+              )}
+              {task.status !== 'flying' && (
+                <span className="text-tech-text-secondary flex-shrink-0">
+                  {task.status === 'queued' ? '排队' : '准备'}
+                </span>
+              )}
             </div>
-            <span className="text-tech-text font-mono">{task.progress}%</span>
-          </div>
-        ))}
-        {flyingTasks.length === 0 && (
-          <p className="text-xs text-tech-text-secondary">暂无飞行任务</p>
+          ))
+        )}
+        {visibleTasks.length > 5 && (
+          <p className="text-xs text-tech-text-secondary text-center">+{visibleTasks.length - 5} 个更多</p>
         )}
       </div>
 
