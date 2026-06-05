@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Map, Navigation, Layers, Cloud, Wind, AlertTriangle, Plane, MapPin, Plus, Info } from 'lucide-react';
+import { Map, Navigation, Layers, Cloud, Wind, AlertTriangle, Plane, MapPin, Plus, Info, CloudRain, CloudOff } from 'lucide-react';
 import MapView from '../components/MapView';
 import { useAppStore } from '../store';
 import { weatherData, noFlyZones } from '../mock';
@@ -7,7 +7,7 @@ import StatusBadge from '../components/StatusBadge';
 import { formatDistance, formatDuration } from '../utils/format';
 
 export default function Routes() {
-  const { tasks, drones } = useAppStore();
+  const { tasks, drones, weatherSuspended, setWeatherSuspended } = useAppStore();
   const [showNoFlyZones, setShowNoFlyZones] = useState(true);
   const [showWeather, setShowWeather] = useState(true);
 
@@ -20,6 +20,8 @@ export default function Routes() {
     rainy: '🌧️',
     stormy: '⛈️',
   };
+
+  const canFly = !weatherSuspended && weatherData.weather !== 'stormy' && weatherData.windSpeed < 10;
 
   return (
     <div className="space-y-6 h-[calc(100vh-12rem)]">
@@ -43,6 +45,13 @@ export default function Routes() {
             <Cloud className="w-4 h-4" />
             天气
           </button>
+          <button
+            className={`tech-button-secondary text-sm flex items-center gap-2 ${weatherSuspended ? 'bg-tech-warning/20 border-tech-warning text-tech-warning' : ''}`}
+            onClick={() => setWeatherSuspended(!weatherSuspended)}
+          >
+            {weatherSuspended ? <CloudOff className="w-4 h-4" /> : <CloudRain className="w-4 h-4" />}
+            {weatherSuspended ? '天气暂停中' : '天气暂停'}
+          </button>
           <button className="tech-button text-sm flex items-center gap-2">
             <Plus className="w-4 h-4" />
             规划航线
@@ -50,10 +59,24 @@ export default function Routes() {
         </div>
       </div>
 
+      {weatherSuspended && (
+        <div className="glass-card p-4 border-tech-warning/50 bg-tech-warning/10">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-tech-warning flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-tech-warning">天气暂停已启用</p>
+              <p className="text-xs text-tech-text-secondary mt-0.5">
+                所有新的飞行任务将无法起飞，正在执行的任务建议立即返航
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-4 gap-6 h-full">
         <div className="col-span-3 flex flex-col gap-4">
           <div className="flex-1 glass-card overflow-hidden">
-            <MapView showRoutes={true} interactive={true} />
+            <MapView showRoutes={true} interactive={true} showNoFlyZones={showNoFlyZones} />
           </div>
 
           {showWeather && (
@@ -90,7 +113,11 @@ export default function Routes() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-tech-text-secondary mb-1">飞行条件</p>
-                  <StatusBadge status="flying" text="适宜飞行" pulse={false} />
+                  <StatusBadge
+                    status={canFly ? 'flying' : 'exception'}
+                    text={canFly ? '适宜飞行' : '不适宜飞行'}
+                    pulse={false}
+                  />
                 </div>
               </div>
             </div>

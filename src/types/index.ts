@@ -4,6 +4,34 @@ export type TaskStatus = 'queued' | 'ready' | 'flying' | 'landing' | 'completed'
 
 export type DroneStatus = 'idle' | 'charging' | 'ready' | 'flying' | 'landing' | 'maintenance' | 'offline';
 
+export type NotificationType = 'pickup' | 'takeoff' | 'arrival' | 'signed';
+
+export type ShiftStatus = 'active' | 'completed' | 'upcoming';
+
+export interface Notification {
+  id: string;
+  orderId: string;
+  type: NotificationType;
+  title: string;
+  content: string;
+  sendTime: string;
+  sender: string;
+  read: boolean;
+}
+
+export interface Shift {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  status: ShiftStatus;
+  manager: string;
+  stationIds: string[];
+  droneIds: string[];
+  droneCount: number;
+  taskIds: string[];
+}
+
 export interface Station {
   id: string;
   name: string;
@@ -86,6 +114,7 @@ export interface FlightTask {
   currentLat: number;
   currentLng: number;
   progress: number;
+  shiftId?: string;
 }
 
 export interface Drone {
@@ -119,7 +148,8 @@ export interface Compensation {
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   createTime: string;
-  handler: string;
+  handler?: string;
+  handleTime?: string;
 }
 
 export interface NoFlyZone {

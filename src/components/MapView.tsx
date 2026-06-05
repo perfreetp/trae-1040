@@ -1,25 +1,52 @@
+import { useState } from 'react';
 import { useAppStore } from '../store';
-import { stations } from '../mock';
-import { Plane, Building2, AlertTriangle } from 'lucide-react';
+import { stations, noFlyZones } from '../mock';
+import { Plane, Building2, AlertTriangle, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface MapViewProps {
   showRoutes?: boolean;
   interactive?: boolean;
+  showNoFlyZones?: boolean;
 }
 
-export default function MapView({ showRoutes = true, interactive = true }: MapViewProps) {
+export default function MapView({ showRoutes = true, interactive = true, showNoFlyZones = true }: MapViewProps) {
   const { tasks } = useAppStore();
+  const [zoom, setZoom] = useState(1);
+
+  const baseLat = 31.2304;
+  const baseLng = 121.4737;
 
   const mapToSvg = (lat: number, lng: number) => {
-    const baseLat = 31.2304;
-    const baseLng = 121.4737;
-    const scale = 8000;
-    const x = (lng - baseLng) * scale + 400;
-    const y = (baseLat - lat) * scale + 300;
+    const scale = 8000 * zoom;
+    const centerX = 400;
+    const centerY = 300;
+    const x = (lng - baseLng) * scale + centerX;
+    const y = (baseLat - lat) * scale + centerY;
     return { x, y };
   };
 
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + 0.2, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => Math.max(prev - 0.2, 0.5));
+  };
+
   const flyingTasks = tasks.filter((t) => t.status === 'flying');
+
+  const getNoFlyZoneColor = (type: string) => {
+    switch (type) {
+      case 'airport':
+        return { fill: '#EF4444', stroke: '#DC2626' };
+      case 'government':
+        return { fill: '#F59E0B', stroke: '#D97706' };
+      case 'temporary':
+        return { fill: '#8B5CF6', stroke: '#7C3AED' };
+      default:
+        return { fill: '#EF4444', stroke: '#DC2626' };
+    }
+  };
 
   return (
     <div className="relative w-full h-full bg-tech-bg rounded-xl overflow-hidden border border-tech-border">
@@ -29,12 +56,16 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
         style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)' }}
       >
         <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <pattern id="grid" width={40 / zoom} height={40 / zoom} patternUnits="userSpaceOnUse">
             <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" strokeWidth="0.5" opacity="0.3" />
           </pattern>
           <radialGradient id="stationGlow">
             <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.3" />
             <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="noFlyZoneGradient">
+            <stop offset="0%" stopColor="#EF4444" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#EF4444" stopOpacity="0.05" />
           </radialGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="3" result="coloredBlur" />
@@ -62,19 +93,68 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
           opacity="0.5"
         />
 
+        {showNoFlyZones && noFlyZones.map((zone) => {
+          const center = zone.coordinates.length > 0
+            ? mapToSvg(zone.coordinates[0].lat, zone.coordinates[0].lng)
+            : mapToSvg(baseLat, baseLng);
+          const radius = (zone.radius || 1000) * zoom * 0.08;
+          const colors = getNoFlyZoneColor(zone.type);
+
+          return (
+            <g key={zone.id}>
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={radius}
+                fill="url(#noFlyZoneGradient)"
+                stroke={colors.stroke}
+                strokeWidth="2"
+                strokeDasharray="8 4"
+                opacity="0.8"
+              />
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={radius * 0.3}
+                fill={colors.fill}
+                opacity="0.4"
+              />
+              <text
+                x={center.x}
+                y={center.y - radius - 5}
+                textAnchor="middle"
+                fill={colors.stroke}
+                fontSize={10 * zoom}
+                fontWeight="500"
+              >
+                {zone.name}
+              </text>
+            </g>
+          );
+        })}
+
         {stations.map((station) => {
           const pos = mapToSvg(station.lat, station.lng);
           return (
             <g key={station.id}>
-              <circle cx={pos.x} cy={pos.y} r="30" fill="url(#stationGlow)" />
+              <circle cx={pos.x} cy={pos.y} r={30 * zoom} fill="url(#stationGlow)" />
               <circle
                 cx={pos.x}
                 cy={pos.y}
-                r="12"
+                r={12 * zoom}
                 fill={station.status === 'active' ? '#10B981' : '#F59E0B'}
                 opacity="0.9"
               />
-              <circle cx={pos.x} cy={pos.y} r="6" fill="#0F172A" />
+              <circle cx={pos.x} cy={pos.y} r={6 * zoom} fill="#0F172A" />
+              <text
+                x={pos.x}
+                y={pos.y + 25 * zoom}
+                textAnchor="middle"
+                fill="#94A3B8"
+                fontSize={10 * zoom}
+              >
+                {station.name}
+              </text>
             </g>
           );
         })}
@@ -88,7 +168,7 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
             <g key={task.id}>
               {showRoutes && (
                 <path
-                  d={`M ${startPos.x} ${startPos.y} Q ${(startPos.x + endPos.x) / 2} ${Math.min(startPos.y, endPos.y) - 50} ${endPos.x} ${endPos.y}`}
+                  d={`M ${startPos.x} ${startPos.y} Q ${(startPos.x + endPos.x) / 2} ${Math.min(startPos.y, endPos.y) - 50 * zoom} ${endPos.x} ${endPos.y}`}
                   stroke="#3B82F6"
                   strokeWidth="2"
                   fill="none"
@@ -99,17 +179,17 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
               
               <g filter="url(#glow)" className="animate-pulse">
                 <polygon
-                  points={`${dronePos.x},${dronePos.y - 10} ${dronePos.x + 8},${dronePos.y + 6} ${dronePos.x},${dronePos.y + 2} ${dronePos.x - 8},${dronePos.y + 6}`}
+                  points={`${dronePos.x},${dronePos.y - 10 * zoom} ${dronePos.x + 8 * zoom},${dronePos.y + 6 * zoom} ${dronePos.x},${dronePos.y + 2 * zoom} ${dronePos.x - 8 * zoom},${dronePos.y + 6 * zoom}`}
                   fill="#3B82F6"
                 />
-                <circle cx={dronePos.x} cy={dronePos.y} r="15" fill="#3B82F6" opacity="0.2" />
+                <circle cx={dronePos.x} cy={dronePos.y} r={15 * zoom} fill="#3B82F6" opacity="0.2" />
               </g>
             </g>
           );
         })}
 
         <g transform="translate(20, 520)">
-          <rect x="0" y="0" width="200" height="70" rx="8" fill="#1E293B" stroke="#334155" />
+          <rect x="0" y="0" width="220" height="90" rx="8" fill="#1E293B" stroke="#334155" />
           <g transform="translate(12, 12)">
             <circle cx="8" cy="8" r="6" fill="#10B981" />
             <text x="22" y="12" fill="#94A3B8" fontSize="11">站点</text>
@@ -122,6 +202,12 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
             <path d="M 0 8 L 40 8" stroke="#3B82F6" strokeWidth="2" strokeDasharray="4 2" />
             <text x="50" y="12" fill="#94A3B8" fontSize="11">航线</text>
           </g>
+          {showNoFlyZones && (
+            <g transform="translate(12, 62)">
+              <circle cx="8" cy="8" r="6" fill="#EF4444" opacity="0.5" stroke="#DC2626" strokeDasharray="2 1" />
+              <text x="22" y="12" fill="#94A3B8" fontSize="11">禁飞区</text>
+            </g>
+          )}
         </g>
       </svg>
 
@@ -143,13 +229,24 @@ export default function MapView({ showRoutes = true, interactive = true }: MapVi
       </div>
 
       {interactive && (
-        <div className="absolute bottom-4 right-4 flex gap-2">
-          <button className="w-8 h-8 glass-card flex items-center justify-center text-tech-text-secondary hover:text-tech-text transition-colors">
-            +
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+          <button
+            onClick={handleZoomIn}
+            className="w-8 h-8 glass-card flex items-center justify-center text-tech-text-secondary hover:text-tech-text transition-colors"
+            title="放大"
+          >
+            <ZoomIn className="w-4 h-4" />
           </button>
-          <button className="w-8 h-8 glass-card flex items-center justify-center text-tech-text-secondary hover:text-tech-text transition-colors">
-            -
+          <button
+            onClick={handleZoomOut}
+            className="w-8 h-8 glass-card flex items-center justify-center text-tech-text-secondary hover:text-tech-text transition-colors"
+            title="缩小"
+          >
+            <ZoomOut className="w-4 h-4" />
           </button>
+          <div className="text-xs text-tech-text-secondary text-center font-mono">
+            {(zoom * 100).toFixed(0)}%
+          </div>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { Station, Drone, Order, FlightTask, Review, Compensation, NoFlyZone, WeatherData, Route } from '../types';
+import type { Station, Drone, Order, FlightTask, Review, Compensation, NoFlyZone, WeatherData, Route, Notification, Shift } from '../types';
 
 const baseLat = 31.2304;
 const baseLng = 121.4737;
@@ -224,14 +224,106 @@ export const reviews: Review[] = [
 ];
 
 export const compensations: Compensation[] = [
-  { id: 'c1', orderId: 'o17', amount: 50, reason: '配送途中遇到恶劣天气，导致包裹延迟送达', status: 'pending', createTime: '2026-06-06T10:00:00Z', handler: '' },
-  { id: 'c2', orderId: 'o20', amount: 30, reason: '包裹外包装轻微磨损，客户申请补偿', status: 'approved', createTime: '2026-06-05T16:30:00Z', handler: '李调度' },
+  { id: 'c1', orderId: 'o17', amount: 50, reason: '配送途中遇到恶劣天气，导致包裹延迟送达', status: 'pending', createTime: '2026-06-06T10:00:00Z' },
+  { id: 'c2', orderId: 'o20', amount: 30, reason: '包裹外包装轻微磨损，客户申请补偿', status: 'approved', createTime: '2026-06-05T16:30:00Z', handler: '李调度', handleTime: '2026-06-05T17:00:00Z' },
 ];
 
 export const noFlyZones: NoFlyZone[] = [
-  { id: 'nfz1', name: '虹桥机场禁飞区', type: 'airport', coordinates: [], radius: 5000 },
-  { id: 'nfz2', name: '人民广场管制区', type: 'government', coordinates: [], radius: 2000 },
-  { id: 'nfz3', name: '陆家嘴临时管制', type: 'temporary', coordinates: [], radius: 1500 },
+  {
+    id: 'nfz1',
+    name: '虹桥机场禁飞区',
+    type: 'airport',
+    coordinates: [
+      { lat: baseLat - 0.01, lng: baseLng - 0.04 },
+      { lat: baseLat - 0.015, lng: baseLng - 0.035 },
+      { lat: baseLat - 0.005, lng: baseLng - 0.045 },
+    ],
+    radius: 3000,
+  },
+  {
+    id: 'nfz2',
+    name: '人民广场管制区',
+    type: 'government',
+    coordinates: [
+      { lat: baseLat + 0.005, lng: baseLng - 0.005 },
+      { lat: baseLat + 0.008, lng: baseLng - 0.002 },
+      { lat: baseLat + 0.002, lng: baseLng - 0.008 },
+    ],
+    radius: 1500,
+  },
+  {
+    id: 'nfz3',
+    name: '陆家嘴临时管制',
+    type: 'temporary',
+    coordinates: [
+      { lat: baseLat + 0.02, lng: baseLng + 0.03 },
+      { lat: baseLat + 0.025, lng: baseLng + 0.035 },
+      { lat: baseLat + 0.015, lng: baseLng + 0.025 },
+    ],
+    radius: 1000,
+  },
+];
+
+export const notifications: Notification[] = [
+  {
+    id: 'n1',
+    orderId: 'o1',
+    type: 'takeoff',
+    title: '无人机已起飞',
+    content: '您的包裹已从浦东中枢站起飞，预计 10 分钟后送达',
+    sendTime: new Date(Date.now() - 10 * 60000).toISOString(),
+    sender: '系统',
+    read: true,
+  },
+  {
+    id: 'n2',
+    orderId: 'o5',
+    type: 'arrival',
+    title: '包裹已送达',
+    content: '您的包裹已送达目的地，请及时查收',
+    sendTime: new Date(Date.now() - 30 * 60000).toISOString(),
+    sender: '系统',
+    read: true,
+  },
+];
+
+export const shifts: Shift[] = [
+  {
+    id: 'sh1',
+    name: '早班',
+    startTime: '06:00',
+    endTime: '14:00',
+    status: 'active',
+    manager: '张调度',
+    stationIds: ['s1', 's2', 's3'],
+    droneIds: ['d1', 'd2', 'd3', 'd5', 'd8'],
+    droneCount: 5,
+    taskIds: ['t1', 't2', 't3', 't4', 't5', 't6'],
+  },
+  {
+    id: 'sh2',
+    name: '中班',
+    startTime: '14:00',
+    endTime: '22:00',
+    status: 'upcoming',
+    manager: '李调度',
+    stationIds: ['s1', 's2', 's5', 's6'],
+    droneIds: ['d4', 'd6', 'd9'],
+    droneCount: 3,
+    taskIds: [],
+  },
+  {
+    id: 'sh3',
+    name: '晚班',
+    startTime: '22:00',
+    endTime: '06:00',
+    status: 'upcoming',
+    manager: '王调度',
+    stationIds: ['s1', 's6'],
+    droneIds: ['d3', 'd6'],
+    droneCount: 2,
+    taskIds: [],
+  },
 ];
 
 export const weatherData: WeatherData = {

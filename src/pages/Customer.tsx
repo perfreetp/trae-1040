@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Users, MessageSquare, Star, FileText, AlertCircle, Search, Filter, Plus, ChevronDown, Eye, MoreHorizontal, Check, X } from 'lucide-react';
+import { Users, MessageSquare, Star, FileText, AlertCircle, Search, Filter, Plus, ChevronDown, Eye, MoreHorizontal, Check, X, Clock } from 'lucide-react';
 import { useAppStore } from '../store';
 import StatusBadge from '../components/StatusBadge';
-import { formatDate, formatCurrency } from '../utils/format';
+import { formatDate, formatCurrency, formatTime } from '../utils/format';
 
 export default function Customer() {
-  const { reviews, compensations, orders } = useAppStore();
+  const { reviews, compensations, orders, handleCompensation } = useAppStore();
   const [activeTab, setActiveTab] = useState<'reviews' | 'compensations'>('reviews');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -215,15 +215,33 @@ export default function Customer() {
                           text={comp.status === 'pending' ? '待处理' : comp.status === 'approved' ? '已通过' : '已拒绝'}
                         />
                       </td>
-                      <td className="px-4 py-3 text-sm text-tech-text-secondary">{comp.handler || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-tech-text-secondary">
+                        <div>
+                          <p>{comp.handler || '-'}</p>
+                          {comp.handleTime && (
+                            <p className="text-xs text-tech-text-secondary/60 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(comp.handleTime)}
+                            </p>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-tech-text-secondary font-mono">{formatDate(comp.createTime)}</td>
                       <td className="px-4 py-3 text-right">
                         {comp.status === 'pending' && (
                           <div className="flex items-center justify-end gap-2">
-                            <button className="p-1.5 rounded-lg text-tech-success hover:bg-tech-success/10 transition-colors">
+                            <button
+                              onClick={() => handleCompensation(comp.id, 'approved')}
+                              className="p-1.5 rounded-lg text-tech-success hover:bg-tech-success/10 transition-colors"
+                              title="通过"
+                            >
                               <Check className="w-4 h-4" />
                             </button>
-                            <button className="p-1.5 rounded-lg text-tech-danger hover:bg-tech-danger/10 transition-colors">
+                            <button
+                              onClick={() => handleCompensation(comp.id, 'rejected')}
+                              className="p-1.5 rounded-lg text-tech-danger hover:bg-tech-danger/10 transition-colors"
+                              title="拒绝"
+                            >
                               <X className="w-4 h-4" />
                             </button>
                           </div>

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Package, Map, Building2, Plane, Users, Receipt, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Package, Map, Building2, Plane, Users, Receipt, Clock, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
 const menuItems = [
@@ -8,6 +8,7 @@ const menuItems = [
   { path: '/routes', icon: Map, label: '航线地图' },
   { path: '/stations', icon: Building2, label: '站点管理' },
   { path: '/tasks', icon: Plane, label: '任务中心' },
+  { path: '/shifts', icon: Clock, label: '运营班次' },
   { path: '/customer', icon: Users, label: '客户服务' },
   { path: '/settlement', icon: Receipt, label: '结算报表' },
 ];
